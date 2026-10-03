@@ -7,7 +7,7 @@ import streamlit as st
 
 from a2a.client import A2ACardResolver, A2AClientError, ClientConfig, create_client
 from a2a.helpers import get_data_parts, get_text_parts, new_data_part, new_message, new_raw_part, new_text_part
-from a2a.types import Role, SendMessageRequest
+from a2a.types import Role, SendMessageRequest, TaskState
 
 RECEIPT_AGENT_URL = "http://127.0.0.1:10000"
 POLICY_AGENT_URL = "http://127.0.0.1:9999"
@@ -28,6 +28,8 @@ async def connect(http, url: str, skill: str, trace: list):
 async def ask(client, message) -> tuple[dict, str]:
     data, text = {}, ""
     async for reply in client.send_message(SendMessageRequest(message=message)):
+        if reply.task.status.state == TaskState.TASK_STATE_FAILED:
+            raise RuntimeError((get_text_parts(reply.task.status.message.parts) or ["The agent failed."])[0])
         for artifact in reply.task.artifacts:
             data = (get_data_parts(artifact.parts) or [{}])[0]
             text = (get_text_parts(artifact.parts) or [""])[0]
@@ -83,7 +85,7 @@ if go:
             st.session_state.error = None
         except (A2AClientError, httpx.HTTPError, RuntimeError) as error:
             st.session_state.result = None
-            st.session_state.error = f"An agent did not answer: {error}. Are both agents running in their windows?"
+            st.session_state.error = f"{error}"
 
 with right:
     if st.session_state.get("error"):

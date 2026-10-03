@@ -6,8 +6,8 @@ from pathlib import Path
 import httpx
 
 from a2a.client import A2ACardResolver, A2AClientError, ClientConfig, create_client
-from a2a.helpers import get_data_parts, new_message, new_raw_part, new_text_part
-from a2a.types import Role, SendMessageRequest
+from a2a.helpers import get_data_parts, get_text_parts, new_message, new_raw_part, new_text_part
+from a2a.types import Role, SendMessageRequest, TaskState
 
 RECEIPT_AGENT_URL = "http://127.0.0.1:10000"
 MY_TOKEN = os.environ["MANAGER_TOKEN"]
@@ -29,6 +29,8 @@ async def main(path: str) -> None:
     ], role=Role.ROLE_USER)
     try:
         async for reply in client.send_message(SendMessageRequest(message=message)):
+            if reply.task.status.state == TaskState.TASK_STATE_FAILED:
+                print("Failed:", (get_text_parts(reply.task.status.message.parts) or ["The agent failed."])[0])
             for artifact in reply.task.artifacts:
                 for data in get_data_parts(artifact.parts):
                     r = data["reading"] or {}

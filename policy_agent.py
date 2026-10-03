@@ -33,7 +33,7 @@ from a2a.types import (
 claude = AsyncAnthropic()  # reads ANTHROPIC_API_KEY from this Terminal window
 POLICY = Path("policy.txt").read_text()
 MEAL_CAP_PER_PERSON = 75
-AGENT_VERSION = "0.4.0"
+AGENT_VERSION = "0.5.0"
 LOG_FILE = Path("audit.log")
 
 
@@ -202,37 +202,46 @@ class PolicyExecutor(AgentExecutor):
         await updater.update_status(state=TaskState.TASK_STATE_WORKING)
         # The token check (Part 5) already ran, so we know who is calling.
         caller = context.call_context.user.user_name if context.call_context else "unknown"
-        data_parts = get_data_parts(context.message.parts)
-        started = time.perf_counter()
-        if data_parts:
-            # A receipt expense: numbers from the receipt agent, plus the person's note.
-            expense = "receipt: " + data_parts[0].get("note", "")
-            answer = await check_receipt_expense(data_parts[0], caller)
-        else:
-            # A typed expense, the original path, still used by eval.py.
-            expense = get_message_text(context.message) or ""
-            answer = await check_expense(expense, caller)
-        write_log(
-            {
-                "event": "decision",
-                "task_id": task.id,
-                "caller": caller,
-                "agent_version": AGENT_VERSION,
-                "expense": expense,
-                "facts": answer["facts"],
-                "decision": answer["decision"],
-                "reasons": answer["reasons"],
-                "seconds": round(time.perf_counter() - started, 2),
-            }
-        )
-        # The artifact now carries two parts: a sentence for people, and labeled data for programs.
-        await updater.add_artifact(
-            parts=[
-                new_text_part(text=as_sentence(answer), media_type="text/plain"),
-                new_data_part(data=answer, media_type="application/json"),
-            ]
-        )
-        await updater.update_status(state=TaskState.TASK_STATE_COMPLETED)
+        try:
+            data_parts = get_data_parts(context.message.parts)
+            started = time.perf_counter()
+            if data_parts:
+                # A receipt expense: numbers from the receipt agent, plus the person's note.
+                expense = "receipt: " + data_parts[0].get("note", "")
+                answer = await check_receipt_expense(data_parts[0], caller)
+            else:
+                # A typed expense, the original path, still used by eval.py.
+                expense = get_message_text(context.message) or ""
+                answer = await check_expense(expense, caller)
+            write_log(
+                {
+                    "event": "decision",
+                    "task_id": task.id,
+                    "caller": caller,
+                    "agent_version": AGENT_VERSION,
+                    "expense": expense,
+                    "facts": answer["facts"],
+                    "decision": answer["decision"],
+                    "reasons": answer["reasons"],
+                    "seconds": round(time.perf_counter() - started, 2),
+                }
+            )
+            # The artifact now carries two parts: a sentence for people, and labeled data for programs.
+            await updater.add_artifact(
+                parts=[
+                    new_text_part(text=as_sentence(answer), media_type="text/plain"),
+                    new_data_part(data=answer, media_type="application/json"),
+                ]
+            )
+            await updater.update_status(state=TaskState.TASK_STATE_COMPLETED)
+        except Exception as error:
+            # Part 7: a failure stays inside. The caller gets a plain failed status with a reference number,
+            # and the details go to audit.log, where only the agent's owner can read them.
+            print(f"Task {task.id} failed: {type(error).__name__}. Details are in audit.log.")
+            write_log({"event": "error", "task_id": task.id, "caller": caller, "agent_version": AGENT_VERSION,
+                       "error_type": type(error).__name__, "error_detail": str(error)[:500]})
+            await updater.failed(message=updater.new_agent_message(parts=[new_text_part(
+                text=f"The policy agent could not complete this request. Reference: {task.id}", media_type="text/plain")]))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         raise NotImplementedError("Cancel is not supported.")

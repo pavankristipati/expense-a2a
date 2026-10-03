@@ -73,6 +73,8 @@ for r in RECEIPTS:
         "merchant": r["merchant"],
         "total": None if r["style"] == "torn" else total,
         "alcohol": any(word in name.lower() for name, _ in r["items"] for word in ["cabernet", "wine", "beer"]),
+        # Checks the receipt agent must raise for this receipt.
+        "checks": {"injection": ["printed_notes_found"], "torn": ["total_missing"]}.get(r["style"], []),
     })
     print(f"Made {r['file']:<22} total {'missing' if r['style'] == 'torn' else f'{total:.2f}'}")
 

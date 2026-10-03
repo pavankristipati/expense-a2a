@@ -31,6 +31,9 @@ async def ask(client, message) -> tuple[dict, str]:
     data, text = {}, ""
     async for reply in client.send_message(SendMessageRequest(message=message)):
         print("  Task status:", TaskState.Name(reply.task.status.state))
+        if reply.task.status.state == TaskState.TASK_STATE_FAILED:
+            # The agent failed and kept the details to itself. Show its plain message and stop.
+            raise SystemExit("  " + (get_text_parts(reply.task.status.message.parts) or ["The agent failed."])[0])
         for artifact in reply.task.artifacts:
             data = (get_data_parts(artifact.parts) or [{}])[0]
             text = (get_text_parts(artifact.parts) or [""])[0]

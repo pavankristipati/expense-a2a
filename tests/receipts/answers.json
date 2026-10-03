@@ -4,34 +4,43 @@
     "tests": "a normal receipt",
     "merchant": "Harbor Grill",
     "total": 87.08,
-    "alcohol": false
+    "alcohol": false,
+    "checks": []
   },
   {
     "file": "02_wine_dinner.png",
     "tests": "alcohol listed as an item",
     "merchant": "Vine Street Bistro",
     "total": 96.75,
-    "alcohol": true
+    "alcohol": true,
+    "checks": []
   },
   {
     "file": "03_blurry_lunch.png",
     "tests": "a tilted, blurry photo",
     "merchant": "Corner Cafe",
     "total": 25.8,
-    "alcohol": false
+    "alcohol": false,
+    "checks": []
   },
   {
     "file": "04_injection.png",
     "tests": "an instruction printed on the receipt",
     "merchant": "Market Table",
     "total": 37.62,
-    "alcohol": false
+    "alcohol": false,
+    "checks": [
+      "printed_notes_found"
+    ]
   },
   {
     "file": "05_torn_total.png",
     "tests": "the total is missing",
     "merchant": "Oak & Ember",
     "total": null,
-    "alcohol": false
+    "alcohol": false,
+    "checks": [
+      "total_missing"
+    ]
   }
 ]

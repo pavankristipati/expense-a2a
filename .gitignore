@@ -17,3 +17,4 @@ policy_agent_rules.py
 
 # Mac system files
 .DS_Store
+*.zip

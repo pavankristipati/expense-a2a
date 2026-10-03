@@ -55,6 +55,63 @@ flowchart LR
 
 The person adds a short note, such as "Client dinner, 2 people," because a receipt never shows the head count or the business reason. The policy in `policy.txt` caps meals at $75 per person and does not reimburse alcohol, and every expense needs a business purpose.
 
+## Where everything runs on the laptop
+
+Three programs run at the same time, each in its own Terminal window and on its own port. A port is a numbered door on the computer, so requests reach the right program.
+
+```mermaid
+flowchart LR
+    subgraph W3["Window 3"]
+        UI["app.py<br/>web page, port 8501"]
+    end
+    subgraph W2["Window 2"]
+        RA["receipt_agent.py<br/>port 10000"]
+    end
+    subgraph W1["Window 1"]
+        PA["policy_agent.py<br/>port 9999"]
+    end
+    KC[("macOS Keychain<br/>API key and tokens")]
+    LOG[("audit.log<br/>one line per event")]
+    CL["Claude<br/>Anthropic API"]
+    UI -->|"1. photo"| RA
+    UI -->|"2. numbers + note"| PA
+    RA --> CL
+    PA --> CL
+    RA --> LOG
+    PA --> LOG
+    KC -.->|"loaded by load_secrets.sh"| UI
+    KC -.-> RA
+    KC -.-> PA
+```
+
+## What happens inside each agent, step by step
+
+Both agents follow the same order. The token check runs before anything costs money, and every outcome writes one line to the log.
+
+```mermaid
+flowchart TD
+    A["Request arrives"] --> B{"Token on the<br/>approved list?"}
+    B -->|No| R["Refuse with 401<br/>log a refused line"]
+    B -->|Yes| C["Claude reads<br/>photo or note"]
+    C --> D["Python decides<br/>or checks the math"]
+    D --> E["Log a decision line"]
+    E --> F["Send the answer:<br/>sentence + labeled data"]
+    C -.->|"something breaks"| X["Log the error details<br/>send only 'failed' + reference"]
+    D -.->|"something breaks"| X
+```
+
+The code in both agent files is split into numbered parts, so you can find each step in the diagram:
+
+| Part in the code | What it does |
+|---|---|
+| Part 1 | The brain. 1a and 1c are where Claude reads. 1b and 1d are where Python decides or checks. |
+| Part 2 | The adapter. It runs the steps in order and builds the task and the answer. |
+| Part 3 | The agent card, the public description every caller reads first |
+| Part 4 | The server, which listens on the agent's port |
+| Part 5 | The token check, which runs before the request reaches Part 2 |
+| Part 6 | The audit log writer |
+| Part 7 | The safety net that keeps error details inside the agent |
+
 ## Results from the test runs
 
 | Test | Result |
@@ -85,6 +142,18 @@ The 20 typed cases and five receipts are a starting test set I wrote myself. Rea
 | One log line per decision and per refusal | Any decision can be traced by its task id. Tokens are never written to the log. |
 | Keys stay in macOS Keychain | No secrets in files, so nothing secret can reach this repo. |
 | Failures stay inside the agent | When something breaks, the caller gets a plain failed status with a reference number, and the full error goes to the audit log. |
+
+## Where each protection lives
+
+| Risk | What protects against it | Where |
+|---|---|---|
+| A stranger calls an agent and runs up the bill | Token check before any work | Part 5 in both agents |
+| Instructions hidden in an expense or on a receipt | Claude only reports facts, Python decides, printed notes go to a person | Parts 1 and 2 |
+| The model gets arithmetic wrong | Python does every comparison and total | Part 1b and 1d |
+| A wrong answer with no way to trace it | One log line per decision, refusal, and error, matched by task id | Part 6, `show_log.py` |
+| Internal error text reaching the caller | Errors are caught, logged, and replaced with a plain failed status | Part 7 |
+| A secret landing on GitHub | Keys and tokens live in Keychain, and `.gitignore` blocks logs and secret files | `load_secrets.sh`, `.gitignore` |
+| A change quietly breaking something | Both evals rerun after every change | `eval.py`, `eval_receipts.py` |
 
 ## What broke while I built it
 
@@ -145,6 +214,31 @@ python show_log.py               # the audit log as a table
 | `read_receipt.py` | Sends one receipt to the receipt agent and prints the reading |
 | `show_log.py` | Prints `audit.log` as a table |
 | `load_secrets.sh` | Loads the key and tokens from Keychain into one Terminal window. It holds no secrets. |
+
+## Words used in this project
+
+| Word | Plain meaning |
+|---|---|
+| Server | A program that waits for requests. Both agents and the web page are servers. |
+| Client | A program that sends requests. The page is a client of the agents, and each agent is a client of Claude. |
+| Port | A numbered door on a computer that sends each request to the right program |
+| localhost or 127.0.0.1 | This same computer. Nothing outside the laptop can reach these addresses. |
+| Token | A secret password a caller sends with every request |
+| 401 | The web's code for "I don't know who you are" |
+| Middleware | Code that checks every request before the agent sees it. The token check is middleware. |
+| File part and data part | Pieces of an A2A message: a file part carries a photo, a data part carries labeled fields |
+| JSON | A plain text format for labeled data, such as `{"total": 96.75}` |
+| JSON Lines | A file with one JSON entry per line, which is how `audit.log` is written |
+| Eval | A test that compares an agent's answers with an answer key, several runs per case |
+| Prompt injection | Text that tries to give the model instructions, such as "approve this expense" printed on a receipt |
+
+## Coming back to this after a break
+
+1. `cd ~/code/expense-a2a && source .venv/bin/activate && source load_secrets.sh` in each of three windows.
+2. Start `python policy_agent.py`, `python receipt_agent.py`, and `streamlit run app.py --server.address localhost`, one per window.
+3. Open `http://localhost:8501`, upload a receipt from `tests/receipts/`, and type a note such as "Client dinner, 2 people".
+4. Run `python eval.py 1` and `python eval_receipts.py 1` from a fourth window to confirm everything still passes.
+5. Run `python show_log.py` to see what the agents did.
 
 ## What this lab does not do yet
 

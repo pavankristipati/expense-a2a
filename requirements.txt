@@ -1,0 +1,6 @@
+a2a-sdk[http-server]==1.2.1
+anthropic==1.11.0
+httpx==0.28.1
+pillow==12.3.0
+streamlit==1.65.0
+uvicorn==0.54.0

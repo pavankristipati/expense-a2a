@@ -1,0 +1,19 @@
+# Python's private copy for this project. Anyone can rebuild it from requirements.txt.
+.venv/
+__pycache__/
+
+# The audit log holds expense text from real runs. It stays on the machine that ran them.
+audit.log
+*.log
+
+# Secrets never go in the repo. Keys live in macOS Keychain, loaded by load_secrets.sh.
+.env
+*.key
+
+# Backup copies made during the lab. Git keeps the history from here on.
+*_v[0-9].py
+*_v[0-9][0-9].py
+policy_agent_rules.py
+
+# Mac system files
+.DS_Store

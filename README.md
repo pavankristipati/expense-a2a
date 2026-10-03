@@ -10,17 +10,23 @@ In each agent, Claude only reads, and plain Python makes every decision. The pol
 
 Each agent is a separate program that waits for requests at its own address, the way a shop waits for calls at its own phone number. The caller only needs that address. It never sees the agent's code, its prompt, or which AI model it uses.
 
-A2A is the shared set of rules for the call, so agents built by different people can still work together. A call has two parts. First the caller reads the agent's card to learn what it can do. Then it sends the work and gets back an answer.
+A2A is the shared set of rules for these calls, so agents built by different people can still work together. Every call has two parts. First the caller reads the agent's card to learn what it can do. Then it sends the work and gets back an answer. Checking one receipt takes two calls, one to each agent.
 
 ```mermaid
 sequenceDiagram
     participant Page as Web page (caller)
-    participant Agent as Receipt agent
-    Page->>Agent: What can you do?
-    Agent-->>Page: Card: "I read receipts. A token is required."
-    Page->>Agent: Message: receipt photo, with my token
-    Note over Agent: Checks the token, then does the work
-    Agent-->>Page: Task completed, with the reading attached
+    participant Receipt as Receipt agent
+    participant Policy as Policy agent
+    Page->>Receipt: What can you do?
+    Receipt-->>Page: Card: "I read receipts. A token is required."
+    Page->>Receipt: Message: receipt photo, with my token
+    Note over Receipt: Checks the token, Claude reads the photo, Python checks the math
+    Receipt-->>Page: Task completed: merchant, items, total
+    Page->>Policy: What can you do?
+    Policy-->>Page: Card: "I check expenses. A token is required."
+    Page->>Policy: Message: receipt numbers and the note, with my token
+    Note over Policy: Checks the token, Claude reads the note, Python applies the rules
+    Policy-->>Page: Task completed: approved or flagged, with reasons
 ```
 
 | Word | What it means in this project |
@@ -31,7 +37,7 @@ sequenceDiagram
 | Artifact | The finished answer attached to a completed task. Here it holds a sentence for people and labeled data for programs. |
 | Token | A secret password the caller sends with every message. The agent refuses any message without an approved token before doing any work. |
 
-In this project the web page makes two calls in a row: one to the receipt agent to read the photo, then one to the policy agent to decide. The two agents never call each other. The page carries the answer from the first agent to the second.
+The two agents never call each other. The page carries the answer from the receipt agent to the policy agent, so each agent stays focused on one job and can be replaced without changing the other.
 
 ## What happens when you check a receipt
 
